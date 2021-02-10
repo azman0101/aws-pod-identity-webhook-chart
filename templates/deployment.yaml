@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aws-pod-identity-webhook.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      {{- if .Values.podAnnotations }}
+      annotations:
+      {{- range $key, $value := .Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "aws-pod-identity-webhook.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+    {{- if .Values.priorityClassName }}
+      priorityClassName: "{{ .Values.priorityClassName }}"
+    {{- end }}
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "aws-pod-identity-webhook.fullname" . }}
+    {{- if or .Values.podSecurityContext .Values.sysctls }}
+      securityContext:
+    {{- end }}
+    {{- if .Values.podSecurityContext }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+    {{- end }}
+    {{- if .Values.sysctls }}
+        sysctls:
+    {{- range $sysctl, $value := .Values.sysctls }}
+        - name: {{ $sysctl | quote }}
+          value: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+      containers:
+      - name: webhook
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /webhook
+        - --in-cluster
+        - --namespace={{ .Release.Namespace }}
+        - --service-name={{ include "aws-pod-identity-webhook.fullname" . }}
+      {{- if or .Values.admissionControllerCert .Values.generateAdmissionControllerCerts  }}
+        - --tls-secret={{ include "aws-pod-identity-webhook.fullname" . }}-cert
+      {{- else }}
+        - --tls-secret={{ .Values.tlsSecretName }}
+      {{- end }}
+        - --annotation-prefix={{ .Values.annotationPrefix }}
+        - --token-audience={{ .Values.tokenAudience }}
+        - --logtostderr
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.healthCheckPath }}
+            port: {{ .Values.livenessProbe.port }}
+            scheme: HTTP
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.healthCheckPath }}
+            port: {{ .Values.readinessProbe.port }}
+            scheme: HTTP
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+      {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+        volumeMounts:
+        - name: webhook-certs
+          mountPath: /var/run/app/certs
+          readOnly: false
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if or .Values.podAntiAffinity .Values.affinity }}
+      affinity:
+    {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- if eq .Values.podAntiAffinity "hard" }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: {{ .Values.podAntiAffinityTopologyKey }}
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: {{ include "aws-pod-identity-webhook.name" . }}
+                app.kubernetes.io/instance: {{ .Release.Name }}
+{{- else if eq .Values.podAntiAffinity "soft" }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: {{ .Values.podAntiAffinityTopologyKey }}
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: {{ include "aws-pod-identity-webhook.name" . }}
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      volumes:
+      - name: webhook-certs
+        emptyDir: {}

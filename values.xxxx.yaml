@@ -1,0 +1,3 @@
+image:
+  repository: XXXXXXX.dkr.ecr.eu-west-3.amazonaws.com/eks/pod-identity-webhook
+  tag: "v0.2.0"

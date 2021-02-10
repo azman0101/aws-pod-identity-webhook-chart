@@ -1,0 +1,43 @@
+{{- $cn := printf "%s.%s.svc" ( include "aws-pod-identity-webhook.fullname" . ) .Release.Namespace }}
+{{- $ca := genCA "irsa-admission-ca" 3650 -}}
+{{- $cert := genSignedCert $cn nil nil 3650 $ca -}}
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}
+  labels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+webhooks:
+- name: pod-identity-webhook.amazonaws.com
+  failurePolicy: Ignore
+  clientConfig:
+    service:
+      name: {{ include "aws-pod-identity-webhook.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+      path: "/mutate"
+{{ if .Values.generateAdmissionControllerCerts }}
+    caBundle: {{ b64enc $ca.Cert }}
+{{ else }}
+    caBundle: {{ .Values.caBundle | quote }}
+{{ end }}
+  rules:
+  - operations: [ "CREATE" ]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}-cert
+  labels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+type: Opaque
+data:
+{{ if .Values.generateAdmissionControllerCerts }}
+  tls.crt: {{ b64enc $cert.Cert }}
+  tls.key: {{ b64enc $cert.Key }}
+{{ else }}
+  tls.crt: {{ b64enc .Values.admissionControllerCert }}
+  tls.key: {{ b64enc .Values.admissionControllerKey }}
+{{ end }}

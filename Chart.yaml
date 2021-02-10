@@ -1,0 +1,21 @@
+apiVersion: v1
+appVersion: "0.2.0"
+description: A Helm chart for the Amazon EKS Pod Identity Webhook
+name: aws-pod-identity-webhook
+version: "1.1"
+icon: https://raw.githubusercontent.com/aws/eks-charts/master/docs/logo/aws.png
+home: https://github.com/azman0101/amazon-eks-pod-identity-webhook-chart
+sources:
+- https://github.com/max-rocket-internet/eks-charts/tree/pod-identity-webhook/stable/aws-pod-identity-webhook
+- https://github.com/aws/amazon-eks-pod-identity-webhook
+maintainers:
+- name: Julien Boulanger
+  email: azman0101@gmail.com
+- name: Micah Hausler
+  email: micahhausler@users.noreply.github.com
+- name: Nicholas Turner
+  url: https://github.com/nckturner
+  email: nckturner@users.noreply.github.com
+- name: Stefan Prodan
+  url: https://github.com/stefanprodan
+  email: stefanprodan@users.noreply.github.com

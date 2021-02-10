@@ -1,0 +1,93 @@
+{{- if .Values.prometheus_operator.enable_alerting_rule -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+    prometheus: k8s
+    role: alert-rules
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}
+  namespace: monitoring
+spec:
+  groups:
+  - name: {{ include "aws-pod-identity-webhook.fullname" . }}.rules
+    rules:
+    - alert: Warning - K8S - CSR Pending for approval
+      annotations:
+        description: '{{`{{`}}$labels.certificatesigningrequest{{`}}`}} is waiting for approval'
+        summary: '{{`{{`}} $externalLabels.cluster_name {{`}}`}} - Warning - K8S - CSR pending for approval'
+      expr: |
+        count(kube_certificatesigningrequest_condition{condition="approved"} == 0) > 0
+      for: 5m
+      labels:
+        admin_alert: "true"
+        bcs_alert: HO
+        cluster_name: '{{`{{`}} $externalLabels.cluster_name {{`}}`}}'
+        nmcback_alert: "false"
+        severity: warning
+    - alert: Critical - K8S - CSR Pending for approval
+      annotations:
+        description: '{{`{{`}}$labels.certificatesigningrequest{{`}}`}} is waiting for approval'
+        summary: '{{`{{`}} $externalLabels.cluster_name {{`}}`}} - Critical - K8S - CSR pending for approval'
+      expr: |
+        count(kube_certificatesigningrequest_condition{condition="approved"} == 0) > 0
+      for: 35m
+      labels:
+        admin_alert: "true"
+        bcs_alert: HO
+        cluster_name: '{{`{{`}} $externalLabels.cluster_name {{`}}`}}'
+        nmcback_alert: "false"
+        severity: critical
+{{- if .Values.prometheus_operator.enable_service_monitor }}
+    - alert: Warning - K8S - Certificate is about to expire - 90 days left
+      annotations:
+        description: '{{`{{`}}$labels.certificatesigningrequest{{`}}`}} is waiting for approval'
+        summary: '{{`{{`}} $externalLabels.cluster_name {{`}}`}} - Warning - K8S - CSR pending for approval'
+      expr: |
+        certificate_manager_server_expiration_seconds < 7776000
+      for: 5m
+      labels:
+        admin_alert: "true"
+        bcs_alert: HO
+        cluster_name: '{{`{{`}} $externalLabels.cluster_name {{`}}`}}'
+        nmcback_alert: "false"
+        severity: warning
+    - alert: Warning - K8S -  Certificate is about to expire - 30 days left
+      annotations:
+        description: '{{`{{`}}$labels.certificatesigningrequest{{`}}`}} is waiting for approval'
+        summary: '{{`{{`}} $externalLabels.cluster_name {{`}}`}} - Critical - K8S - CSR pending for approval'
+      expr: |
+        certificate_manager_server_expiration_seconds < 2592000
+      for: 5m
+      labels:
+        admin_alert: "true"
+        bcs_alert: HO
+        cluster_name: '{{`{{`}} $externalLabels.cluster_name {{`}}`}}'
+        nmcback_alert: "false"
+        severity: warning
+{{- end -}}
+{{- end -}}
+{{- if .Values.prometheus_operator.enable_service_monitor }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: {{ include "aws-pod-identity-webhook.fullname" . }}
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}
+  namespace: monitoring
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 15s
+    scheme: http
+    port: http-metrics
+  jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      k8s-app: {{ include "aws-pod-identity-webhook.fullname" . }}
+{{- end -}}

@@ -1,0 +1,130 @@
+tlsSecretName: pod-identity-webhook
+annotationPrefix: eks.amazonaws.com
+tokenAudience: sts.amazonaws.com
+
+replicas: 3
+minAvailable: 1
+
+image:
+  repository: XXXXXXX.dkr.ecr.eu-west-3.amazonaws.com/eks/pod-identity-webhook
+  tag: "v0.2.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+priorityClassName: "system-cluster-critical"
+
+podAnnotations:
+  seccomp.security.alpha.kubernetes.io/pod: "docker/default"
+
+serviceAccount:
+  # serviceAccount.create: Whether to create a service account or not
+  create: true
+  # serviceAccount.name: The name of the service account to create or use
+  name: ""
+
+
+## Pod anti-affinity can prevent the scheduler from placing Prometheus replicas on the same node.
+## The default value "soft" means that the scheduler should *prefer* to not schedule two replica pods onto the same node but no guarantee is provided.
+## The value "hard" means that the scheduler is *required* to not schedule two replica pods onto the same node.
+## The value "" will disable pod anti-affinity so that no anti-affinity rules will be configured.
+##
+podAntiAffinity: "hard"
+
+## If anti-affinity is enabled sets the topologyKey to use for anti-affinity.
+## This can be changed to, for example, failure-domain.beta.kubernetes.io/zone
+##
+podAntiAffinityTopologyKey: kubernetes.io/hostname
+
+## Assign custom affinity rules to the alertmanager instance
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+##
+affinity: {}
+# nodeAffinity:
+#   requiredDuringSchedulingIgnoredDuringExecution:
+#     nodeSelectorTerms:
+#     - matchExpressions:
+#       - key: kubernetes.io/e2e-az-name
+#         operator: In
+#         values:
+#         - e2e-az1
+#         - e2e-az2
+
+
+# The helm Chart will automatically generate a CA and server certificate for
+# the pod-identity-webhook. If you want to supply your own certificates, set the field below to
+# false and add the PEM encoded CA certificate and server key pair below.
+#
+# WARNING: The common name name in the server certificate MUST match the
+# hostname of the service that exposes the pod-identity-webhook to the apiserver. For example.
+# if the service name is created in the "default" namespace with name "irsa"
+# the common name MUST be set to "irsa.default.svc".
+#
+# If the common name is not set correctly, the apiserver will refuse to
+# communicate with the pod-identity-webhook.
+generateAdmissionControllerCerts: false
+caBundle: ""
+admissionControllerCert: ""
+admissionControllerKey: ""
+
+prometheus_operator:
+  enable_alerting_rule: true
+  enable_service_monitor: true
+
+## Liveness and readiness probe values
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+##
+livenessProbe:
+  failureThreshold: 5
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 1
+  port: 9999
+readinessProbe:
+  failureThreshold: 3
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 1
+  port: 9999
+
+# Path of the health check endpoint. All requests received on the port defined by
+# the healthz-port parameter are forwarded internally to this path.
+healthCheckPath: "/healthz"
+
+
+## Security Context policies for controller pods
+##
+podSecurityContext: {}
+
+## See https://kubernetes.io/docs/tasks/administer-cluster/sysctl-cluster/ for
+## notes on enabling and using sysctls
+###
+sysctls: {}
+# sysctls:
+#   "net.core.somaxconn": "8192"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    add:
+    - NET_BIND_SERVICE
+    drop:
+    - ALL

@@ -1,0 +1,14 @@
+{{- if gt (.Values.replicas | int) 1 }}
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+  name: {{ include "aws-pod-identity-webhook.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+{{ include "aws-pod-identity-webhook.labels" . | indent 4 }}
+  minAvailable: {{ .Values.minAvailable }}
+{{- end }}
